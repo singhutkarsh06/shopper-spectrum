@@ -151,10 +151,40 @@ hr { border-color: #2e2e4e !important; }
 # ─── Load Models & Data ────────────────────────────────
 @st.cache_resource
 def load_models():
-    kmeans       = joblib.load('kmeans_model.pkl')
-    scaler       = joblib.load('scaler.pkl')
-    cosine_sim_df = joblib.load('cosine_sim_df.pkl')
-    product_list = joblib.load('product_list.pkl')
+    import gdown
+    import os
+    from sklearn.metrics.pairwise import cosine_similarity
+
+    # Load KMeans and Scaler from pkl files
+    kmeans = joblib.load('kmeans_model.pkl')
+    scaler = joblib.load('scaler.pkl')
+
+    # Download cleaned CSV from Google Drive if not present
+    if not os.path.exists('online_retail_cleaned.csv'):
+        with st.spinner('📥 Downloading dataset... please wait'):
+            file_id = "YOUR_GOOGLE_DRIVE_FILE_ID"
+            url = f"https://drive.google.com/uc?id={file_id}"
+            gdown.download(url, 'online_retail_cleaned.csv', quiet=False)
+
+    # Build cosine similarity from CSV
+    with st.spinner('🔄 Building recommendation engine...'):
+        df_temp = pd.read_csv('online_retail_cleaned.csv')
+        customer_product = df_temp.pivot_table(
+            index='CustomerID',
+            columns='Description',
+            values='Quantity',
+            aggfunc='sum'
+        ).fillna(0)
+
+        product_matrix = customer_product.T
+        cosine_sim = cosine_similarity(product_matrix)
+        cosine_sim_df = pd.DataFrame(
+            cosine_sim,
+            index=product_matrix.index,
+            columns=product_matrix.index
+        )
+        product_list = list(cosine_sim_df.index)
+
     return kmeans, scaler, cosine_sim_df, product_list
 
 @st.cache_data
